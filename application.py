@@ -2,12 +2,13 @@ import os
 
 from flask import Flask, session, render_template, request
 from flask_session import Session
+from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
 import configparser
 import requests
 
-app = Flask(__name__)
+from models import User, Review
 
 
 def get_credentials(section, variable):
@@ -16,21 +17,24 @@ def get_credentials(section, variable):
     return parser.get(section, variable)
 
 
+app = Flask(__name__)
 # Check for environment variable
 if not os.getenv("DATABASE_URL"):
     os.environ['DATABASE_URL'] = get_credentials("HEROKU", "uri")
+
+# Set up database
+getenv = os.getenv("DATABASE_URL")
+engine = create_engine(getenv)
+db = SQLAlchemy()
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ['DATABASE_URL']
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db.init_app(app)
 
 # Configure session to use filesystem
 os.environ['FLASK_DEBUG'] = "1"
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
-
-# Set up database
-getenv = os.getenv("DATABASE_URL")
-print(getenv)
-engine = create_engine(getenv)
-db = scoped_session(sessionmaker(bind=engine))
 
 
 # Goodreads request
@@ -46,16 +50,24 @@ def index():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        display_name = request.form.get('input_name')
-        email = request.form.get('input_email')
-        password = request.form.get('input_password')
-        if not password == request.form.get('input_repeated_password'):
-            print("nope")
-        # query = "UPDATE "
-        db.execute("SELECT * FROM database")
+        email = str(request.form.get('input_email'))
+        pwd = str(request.form.get('input_password'))
+        display_name = str(request.form.get('input_name'))
+        if User.query.filter_by(user_email=email).first():
+            return render_template('error.html', error_message="This user already exist")
+        db.session.add(User(user_email=email, user_password=pwd, user_display_name=display_name))
+        print(f"Added new user to the database: {email} {display_name}")
+        db.session.commit()
     return render_template('register.html')
 
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'POST':
+        email = request.form.get('input_email')
+        password = request.form.get('input_password')
+        result = User.query.filter_by(user_email=email, user_password=password).first()
+        if not result:
+            return render_template("error.html", error_message="User does not exist")
+        # Session user = result
     return render_template('login.html')
