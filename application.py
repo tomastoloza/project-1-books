@@ -44,7 +44,7 @@ Session(app)
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', is_logged_in=is_logged_in())
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -58,7 +58,7 @@ def register():
         db.session.add(User(user_email=email, user_password=pwd, user_display_name=display_name))
         print(f"Added new user to the database: {email} {display_name}")
         db.session.commit()
-    return render_template('register.html')
+    return render_template('register.html', is_logged_in=is_logged_in())
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -68,6 +68,17 @@ def login():
         password = request.form.get('input_password')
         result = User.query.filter_by(user_email=email, user_password=password).first()
         if not result:
-            return render_template("error.html", error_message="User does not exist")
-        # Session user = result
+            return render_template("error.html", error_message="Either wrong email or password. Try again")
+        session["logged_in"] = True
     return render_template('login.html')
+
+
+@app.route('/logout', methods=['GET', 'POST'])
+def logout():
+    if request.method == 'POST':
+        session["logged_in"] = False
+    return render_template('logout.html')
+
+
+def is_logged_in():
+    return False if not session["logged_in"] else session["logged_in"]
